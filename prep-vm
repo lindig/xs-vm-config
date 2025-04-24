@@ -54,7 +54,7 @@ fi
 echo "ISO image created successfully."
 
 # --- Storage Repository Handling ---
-NAME="CONFIG_ISO"
+NAME="$(hostname)-CONFIG"
 SR=$(xe sr-list name-label="$NAME" params=uuid minimal=true)
 
 if [[ -z "$SR" ]]; then
