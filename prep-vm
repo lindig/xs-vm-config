@@ -30,7 +30,6 @@ fi
 img="config-$VM.iso"
 sr_dir="/var/opt/iso"
 
-
 # Create a local ISO SR
 mkdir -p "$sr_dir" || true
 genisoimage -J -o "$sr_dir/$img" "$DIR"
@@ -50,10 +49,23 @@ else
 fi
 
 xe sr-scan uuid="$SR"
-xe vm-cd-add vm="$VM" cd-name="$img" device=4 || echo "CD already exists"
-xe vm-cd-insert vm="$VM" cd-name="$img"
+# find the first DVD drive and insert the ISO
+VDI=$(xe vdi-list name-label=$img minimal=true)
+VBD=$(xe vm-cd-list uuid="$VM" minimal=true | tr ',' \\012 | head -1)
+xe vbd-insert uuid="$VBD" vdi-uuid="$VDI"
 
-# could write something to xenstore here
+ID=$(xe vm-list \
+  uuid="$VM" \
+  params="dom-id" \
+  minimal=true)
+
+# tell the VM
+XS="/local/domain/$ID/control/sysprep"
+xenstore-write "$XS/filename" "D://unattend.xml"
+xenstore-write "$XS/action"   "sysprep"
+
+
+
 
 
 
