@@ -1,74 +1,120 @@
 #!/usr/bin/env bash
 #
-# This depends on genisoimage: yum install genisoimage
+# This script creates an ISO image from a directory and attaches it as a
+# virtual CD-ROM to a specified XenServer VM.  It depends on the
+# 'genisoimage' package (usually named 'mkisofs' on older systems).
+#
+# Installation: sudo apt-get update && sudo apt-get install genisoimage
+# (Debian/Ubuntu) sudo yum install genisoimage
+# (CentOS/RHEL/Fedora)
 
-set -o errexit
-set -o pipefail
-if [[ -n "$TRACE" ]]; then set -o xtrace; fi
-set -o nounset
+set -euo pipefail # Exit on errors, pipe failures, and unset variables
+if [[ -n "$TRACE" ]]; then set -x; fi # Enable trace mode if TRACE variable is set
 
-if [[ "${1-}" =~ ^-*h(elp)?$ ]]; then
+# --- Usage Information ---
+print_usage() {
     cat <<EOF
 Usage: $0 VM-UUID path/to/dir
 
-Create an ISO from a directoty and make it available as a CD for a VM.
+Create an ISO from a directory and make it available as a CD for a VM.
 EOF
-exit 0
+}
+
+# --- Argument Handling ---
+if [[ $# -lt 2 ]]; then
+    print_usage
+    exit 1
 fi
 
-VM=${1:?Provide the UUID of the VM}
-DIR=${2:?Provide the path to a directory containing configuration data}
+VM="$1"
+DIR="$2"
 
+# --- Input Validation ---
+if ! xe vm-list uuid="$VM" minimal=true &>/dev/null; then
+    echo "Error: VM with UUID '$VM' not found."
+    exit 1
+fi
+
+if ! [[ -d "$DIR" ]]; then
+    echo "Error: Directory '$DIR' does not exist."
+    exit 1
+fi
+
+# --- ISO Creation ---
 now=$(date +%Y%m%d-%H%M%S)
-
-if ! test -d "$DIR"; then
-  echo "$DIR is not a directory"
-  exit 1
-fi
-
-# Create ISO with content
-img="config-$VM.iso"
+img="config-$VM-$now.iso" # Include timestamp for uniqueness
 sr_dir="/var/opt/iso"
+mkdir -p "$sr_dir"
 
-# Create a local ISO SR
-mkdir -p "$sr_dir" || true
-genisoimage -J -o "$sr_dir/$img" "$DIR"
-NAME="CONFIG"
+echo "Creating ISO image '$sr_dir/$img' from directory '$DIR'..."
+if ! genisoimage -J -o "$sr_dir/$img" "$DIR"; then
+    echo "Error: Failed to create ISO image."
+    exit 1
+fi
+echo "ISO image created successfully."
 
+# --- Storage Repository Handling ---
+NAME="CONFIG_ISO"
 SR=$(xe sr-list name-label="$NAME" params=uuid minimal=true)
-if test -z "$SR"; then
-  echo "Creating new local SR"
-  SR=$(xe sr-create \
-    name-label="$NAME" \
-    device-config:location=$sr_dir \
-    device-config:legacy_mode=true \
-    type=iso \
-    content-type=iso)
+
+if [[ -z "$SR" ]]; then
+    echo "Creating new local ISO SR '$NAME'..."
+    SR=$(xe sr-create \
+        name-label="$NAME" \
+        device-config:location="$sr_dir" \
+        device-config:legacy_mode=true \
+        type=iso \
+        content-type=iso)
+    if [[ -z "$SR" ]]; then
+        echo "Error: Failed to create Storage Repository."
+        exit 1
+    fi
+    echo "Storage Repository '$NAME' created with UUID: $SR"
 else
-  echo "Using existing local SR $SR"
+    echo "Using existing local ISO SR '$NAME' with UUID: $SR"
 fi
 
 xe sr-scan uuid="$SR"
-# find the first DVD drive and insert the ISO
-VDI=$(xe vdi-list name-label=$img minimal=true)
-VBD=$(xe vm-cd-list uuid="$VM" minimal=true | tr ',' \\012 | head -1)
-xe vbd-insert uuid="$VBD" vdi-uuid="$VDI"
 
-ID=$(xe vm-list \
-  uuid="$VM" \
-  params="dom-id" \
-  minimal=true)
+# --- Attaching ISO to VM ---
+echo "Finding an available virtual CD-ROM drive for VM '$VM'..."
+VBD=$(xe vm-cd-list uuid="$VM" minimal=true | tr ',' '\n' | head -1)
 
-# tell the VM
+if [[ -z "$VBD" ]]; then
+    echo "Error: No virtual CD-ROM drive found for VM '$VM'."
+    echo "Consider adding one to the VM's configuration."
+    exit 1
+fi
+
+VDI=$(xe vdi-list name-label="$img" sr-uuid="$SR" minimal=true)
+
+if [[ -z "$VDI" ]]; then
+    echo "Error: VDI for ISO '$img' not found in SR '$SR'."
+    exit 1
+fi
+
+echo "Inserting VDI '$VDI' into VBD '$VBD' for VM '$VM'..."
+if ! xe vbd-insert uuid="$VBD" vdi-uuid="$VDI"; then
+    echo "Error: Failed to insert ISO into the virtual CD-ROM drive."
+    exit 1
+fi
+echo "ISO image attached to VM '$VM'."
+
+# --- Telling the VM about Sysprep
+echo "Notifying VM '$VM' about potential sysprep configuration..."
+ID=$(xe vm-list uuid="$VM" params="dom-id" minimal=true)
+
+
+if [[ -z "$ID" ]]; then
+    echo "Warning: Could not retrieve dom-id for VM '$VM'. Sysprep notification skipped."
+    exit 1
+fi
 XS="/local/domain/$ID/control/sysprep"
+echo "Writing sysprep filename 'D://unattend.xml' to XenStore path '$XS/filename'"
 xenstore-write "$XS/filename" "D://unattend.xml"
-xenstore-write "$XS/action"   "sysprep"
+echo "Writing sysprep action 'sysprep' to XenStore path '$XS/action'"
+xenstore-write "$XS/action" "sysprep"
+echo "VM '$VM' notified about sysprep."
 
-
-
-
-
-
-
-
-
+echo "Operation completed successfully."
+exit 0
