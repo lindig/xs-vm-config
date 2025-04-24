@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# This depends on genisoimage: yum install genisoimage
+
+set -o errexit
+set -o pipefail
+if [[ -n "$TRACE" ]]; then set -o xtrace; fi
+set -o nounset
+
+if [[ "${1-}" =~ ^-*h(elp)?$ ]]; then
+    cat <<EOF
+Usage: $0 VM-UUID path/to/dir
+
+Create an ISO from a directoty and make it available as a CD for a VM.
+EOF
+exit 0
+fi
+
+VM=${1:?Provide the UUID of the VM}
+DIR=${2:?Provide the path to a directory containing configuration data}
+
+now=$(date +%Y%m%d-%H%M%S)
+
+if ! test -d "$DIR"; then
+  echo "$DIR is not a directory"
+  exit 1
+fi
+
+# Create ISO with content
+img="config-$VM.iso"
+sr_dir="/var/opt/iso"
+
+
+# Create a local ISO SR
+mkdir -p "$sr_dir" || true
+genisoimage -J -o "$sr_dir/$img" "$DIR"
+NAME="CONFIG"
+
+SR=$(xe sr-list name-label="$NAME" params=uuid minimal=true)
+if test -z "$SR"; then
+  echo "Creating new local SR"
+  SR=$(xe sr-create \
+    name-label="$NAME" \
+    device-config:location=$sr_dir \
+    device-config:legacy_mode=true \
+    type=iso \
+    content-type=iso)
+else
+  echo "Using existing local SR $SR"
+fi
+
+xe sr-scan uuid="$SR"
+xe vm-cd-add vm="$VM" cd-name="$img" device=4 || echo "CD already exists"
+xe vm-cd-insert vm="$VM" cd-name="$img"
+
+# could write something to xenstore here
+
+
+
+
+
+
