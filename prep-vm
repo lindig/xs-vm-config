@@ -8,8 +8,8 @@
 # (Debian/Ubuntu) sudo yum install genisoimage
 # (CentOS/RHEL/Fedora)
 
+if [[ -n "$TRACE" ]]; then set -x; fi
 set -euo pipefail # Exit on errors, pipe failures, and unset variables
-if [[ -n "$TRACE" ]]; then set -x; fi # Enable trace mode if TRACE variable is set
 
 # --- Usage Information ---
 print_usage() {
@@ -54,7 +54,7 @@ fi
 echo "ISO image created successfully."
 
 # --- Storage Repository Handling ---
-NAME="$(hostname)-CONFIG"
+NAME="CONFIG-$(hostname)"
 SR=$(xe sr-list name-label="$NAME" params=uuid minimal=true)
 
 if [[ -z "$SR" ]]; then
@@ -104,11 +104,12 @@ echo "ISO image attached to VM '$VM'."
 echo "Notifying VM '$VM' about potential sysprep configuration..."
 ID=$(xe vm-list uuid="$VM" params="dom-id" minimal=true)
 
-
 if [[ -z "$ID" ]]; then
     echo "Warning: Could not retrieve dom-id for VM '$VM'. Sysprep notification skipped."
     exit 1
 fi
+echo "VM $VM has domain $ID"
+
 XS="/local/domain/$ID/control/sysprep"
 echo "Writing sysprep filename 'D://unattend.xml' to XenStore path '$XS/filename'"
 xenstore-write "$XS/filename" "D://unattend.xml"
