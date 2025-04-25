@@ -47,7 +47,7 @@ sr_dir="/var/opt/iso"
 mkdir -p "$sr_dir"
 
 echo "Creating ISO image '$sr_dir/$img' from directory '$DIR'..."
-if ! genisoimage -J -o "$sr_dir/$img" "$DIR"; then
+if ! genisoimage -r -J -o "$sr_dir/$img" "$DIR"; then
     echo "Error: Failed to create ISO image."
     exit 1
 fi
