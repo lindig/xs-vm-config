@@ -8,8 +8,8 @@ mounting it as a DVD in a VM.
 
 * Copy vm-prep to dom0
 * Create a directoy to hold configuration data: `mkdir config`
-* Copy unattend.xml to dom0 into `config/`.
+* Copy `unattend.xml` to dom0 and into `config/`.
 * `yum install genisoimage`
-*`./vm-prep 55871988-fc37-c0c5-57f7-ed3a7fdfdb8e ./config`
-
+* `./vm-prep 55871988-fc37-c0c5-57f7-ed3a7fdfdb8e ./config`
+* The VM must be running on the local host.
 
