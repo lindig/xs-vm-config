@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 #
 # This script creates an ISO image from a directory and attaches it as a
-# virtual CD-ROM to a specified XenServer VM.  It depends on the
-# 'genisoimage' package (usually named 'mkisofs' on older systems).
+# virtual CD-ROM to a specified XenServer VM.  The VM needs to be
+# runningbecause we depend on xenstore for communication with it.
+#
+# This script depends on the 'genisoimage' package (usually named
+# 'mkisofs' on older systems).
 #
 # Installation: sudo apt-get update && sudo apt-get install genisoimage
-# (Debian/Ubuntu) sudo yum install genisoimage
-# (CentOS/RHEL/Fedora)
+# (Debian/Ubuntu) sudo yum install genisoimage (CentOS/RHEL/Fedora)
 
 if [[ -n "$TRACE" ]]; then set -x; fi
 set -euo pipefail # Exit on errors, pipe failures, and unset variables
@@ -30,8 +32,9 @@ VM="$1"
 DIR="$2"
 
 # --- Input Validation ---
-if ! xe vm-list uuid="$VM" minimal=true &>/dev/null; then
-    echo "Error: VM with UUID '$VM' not found."
+X=$(xe vm-list uuid="$VM" power-state=running minimal=true)
+if [[ -z "$X" ]]; then
+    echo "Error: no running VM with UUID '$VM' found."
     exit 1
 fi
 
