@@ -115,8 +115,10 @@ echo "VM $VM has domain $ID"
 
 XS="/local/domain/$ID/control/sysprep"
 echo "Writing sysprep filename 'D://unattend.xml' to XenStore path '$XS/filename'"
+sleep 5
 xenstore-write "$XS/filename" "D://unattend.xml"
 echo "Writing sysprep action 'sysprep' to XenStore path '$XS/action'"
+sleep 5
 xenstore-write "$XS/action" "sysprep"
 echo "VM '$VM' notified about sysprep."
 
