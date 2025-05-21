@@ -113,6 +113,9 @@ if [[ -z "$ID" ]]; then
 fi
 echo "VM $VM has domain $ID"
 
+# Set VM up so it doesn't auto-restart (so we can eject the CD before it boots back up)
+xe vm-param-set uuid="$VM" actions-after-reboot='Destroy'
+
 XS="/local/domain/$ID/control/sysprep"
 echo "Writing sysprep filename 'D://unattend.xml' to XenStore path '$XS/filename'"
 sleep 5
@@ -121,6 +124,36 @@ echo "Writing sysprep action 'sysprep' to XenStore path '$XS/action'"
 sleep 5
 xenstore-write "$XS/action" "sysprep"
 echo "VM '$VM' notified about sysprep."
+
+echo "Waiting for VM to shutdown."
+while true; do
+    sleep 1
+    if [[ "$(xe vm-param-get uuid="$VM" param-name=power-state)" == "halted" ]]; then
+        break
+    fi
+done
+
+echo "Ejecting ISO from VBD '$VBD' fo VM '$VM'..."
+if ! xe vbd-eject uuid="$VBD"; then
+    echo "Error: Failed to eject ISO from virtual CD-ROM drive."
+    exit 1
+fi
+echo "ISO ejected from VM '$VM'."
+
+# Restore actions-after-reboot
+xe vm-param-set uuid="$VM" actions-after-reboot='Restart'
+
+echo "Starting VM '$VM'."
+if ! xe vm-start uuid="$VM"; then
+    echo "Error: Failed to start VM."
+    exit 1
+fi
+
+echo "Cleaning up..."
+# Cleanup ISO
+rm -f "$sr_dir/$img"
+xe sr-scan uuid="$SR"
+echo "Done."
 
 echo "Operation completed successfully."
 exit 0
