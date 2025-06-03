@@ -38,7 +38,9 @@ def sysprep(_, args):
             logger.debug(file)
         args=["/opt/xensource/bin/vm-prep", vm, tmpdir]  
         result=subprocess.run(args, check=True)
-        return result.stdout
+        # what is the return protocol? Returning result.stdout
+        # lead to errors on the xapi side
+        return "OK"
 
 if __name__ == "__main__":
     XenAPIPlugin.dispatch({"sysprep": sysprep})

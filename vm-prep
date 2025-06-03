@@ -133,7 +133,7 @@ while true; do
     fi
 done
 
-echo "Ejecting ISO from VBD '$VBD' fo VM '$VM'..."
+echo "Ejecting ISO from VBD '$VBD' for VM '$VM'..."
 if ! xe vbd-eject uuid="$VBD"; then
     echo "Error: Failed to eject ISO from virtual CD-ROM drive."
     exit 1
