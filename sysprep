@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+#
+# This requires vm-prep in /opt/xensource/bin/vm-prep
+#
+# xe host-call-plugin host-uuid=01abb3e5-ae34-470e-9857-939564c87f45
+#   fn=sysprep plugin=sysprep 
+#   args:vm=f7751e77-356f-be83-a6d7-e1eaeccb387e 
+#   args:unattend:file=unattend.xml
+
+# The file= mechanism is a local additionbecause otherwise there is no
+# way to pass the contents of a file as a parameter. This should not be
+# a problem with other API clients.
+
+import logging
+import os
+import subprocess
+import tempfile
+import XenAPIPlugin
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+def sysprep(_, args):
+    if "vm" not in args:
+        logger.critical("Missing argument 'vm'")
+        raise Exception("MISSING_VM")
+    if "unattend" not in args:
+        logger.critical("Missing argument 'unattend'")
+        raise Exception("MISSING_UNATTEND")
+    vm = args["vm"]
+    file = args["unattend"]
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir,"unattend.xml")
+        with open(path, 'w') as unattend:
+            unattend.write(file)
+            logger.debug(file)
+        args=["/opt/xensource/bin/vm-prep", vm, tmpdir]  
+        result=subprocess.run(args, check=True)
+        return result.stdout
+
+if __name__ == "__main__":
+    XenAPIPlugin.dispatch({"sysprep": sysprep})
