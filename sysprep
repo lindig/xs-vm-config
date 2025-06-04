@@ -7,9 +7,7 @@
 #   args:vm=f7751e77-356f-be83-a6d7-e1eaeccb387e 
 #   args:unattend:file=unattend.xml
 
-# The file= mechanism is a local additionbecause otherwise there is no
-# way to pass the contents of a file as a parameter. This should not be
-# a problem with other API clients.
+# The file= mechanism is a recent addition to xe host-call-plugin.
 
 import logging
 import os
